@@ -4,3 +4,7 @@
 *.glob
 *.vo
 *.vok
+*.aux
+# Maybe we do want Makefile.coq and Makefile.coq.conf?
+# I ignore them because they are machine generated.
+Makefile.*
