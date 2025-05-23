@@ -1,6 +1,4 @@
--R . Project
 -Q /home/ixb140230/git_clones/SECOMP secomp
-# -Q /home/ixb140230/.opam/secomp/lib/coq/user-contrib/compcert compcert
 
 absint_setup.v
 whilelang/Sign.v
