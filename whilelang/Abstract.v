@@ -138,7 +138,7 @@ match ae with
 end.
 
 (* Semantics of abstract instructions *) 
-Definition limit_fixpoint := S(S (S (S (S (S (S (S (S (S O))))))))).
+Definition limit_fixpoint := S (S (S (S (S (S (S (S (S (S O))))))))).
 Fixpoint abs_interp (ab_s : ab_state) (ai : Wlang.instr) (fuel : nat) {struct fuel} : res ab_state :=
 match fuel with 
 | O => Error (msg "No fuel to suppprt")
@@ -162,7 +162,7 @@ match fuel with
          | Seq i1 i2 => do s1 <- abs_interp ab_s i1 f;
                         abs_interp s1 i2 f
          | Skip => OK ab_s
-         end             
+         end
 end.
 
 End Abi.
@@ -197,7 +197,11 @@ Import Example1.
 Definition x := 1%positive.
 Definition y := 2%positive.
 Definition z := 3%positive. 
+(* We can set the initial state to whatever we like.  Here, `state` assumes all
+   variables are initialized to zero.  Typically, a state like `topstate` would
+   be used to say ``these variables may be *any* value to begin with.'' *)
 Definition state := (PTree.set x Zero (PTree.set y Zero (PTree.set z Zero (PTree.empty sign)))).
+Definition topstate := (PTree.set x Top (PTree.set y Top (PTree.set z Top (PTree.empty sign)))).
 
 (* x = 1 ==> x : Pos *)
 Definition test1 := Assgn (Var x) (Const (Int64.repr 1)).
@@ -216,31 +220,45 @@ Definition test3 := While (Bop Eq (Const (Int64.repr 1)) (Const (Int64.repr 1)))
 Compute (do r <- abs_interp state test3 20;
          OK (PTree.get x r)).
 
-(* while (1 == 1) x = 1; x = x + 1 ==> x : Pos *)
+(* y = 100; while (y > 0) { y = y-1; if y==0 then x = 0 else skip } ==> x : Zero *)
+Definition test3' := Seq (Assgn (Var y) (Const (Int64.repr 5))) (While (Bop Gt (Var y) (Const (Int64.repr 0)))
+                          (Seq (Assgn (Var y) (Bop Minus (Var y) (Const (Int64.repr 1)))) (Cond (Bop Eq (Var y) (Const (Int64.repr 0))) (Assgn (Var x) (Const (Int64.repr 0))) (Skip)))).
+Compute (do r <- abs_interp state test3' 20;
+         OK (PTree.get x r)).
+
+(* while (1 == 1) x = 1; x = x + 1 ==> x : Pos? No... Top! Why?
+
+   This abstract domain alone is too weak to determine if loops can or must
+   execute at least once. First of all, it does not consider the conditions of while
+   loops nor conditionals. Second, if it did it would only be able to determine if
+   they cannot run by seeing whether their condition is necessarily Zero.
+   Thus, because the loop may or may not run, `x` may be Zero (the initial value) or Pos.
+   Their join is Top, so our algorithm says `Top`.
+*)
 Definition test4 := While (Bop Eq (Const (Int64.repr 1)) (Const (Int64.repr 1)))
                           (Seq (Assgn (Var x) (Const (Int64.repr 1)))
                                (Assgn (Var x) (Bop Add (Var x) (Const (Int64.repr 1))))).
-Compute (do r <- abs_interp state test4 20;
-         OK (PTree.get x r)). (*gets top: wrong *)
+Compute (do r <- abs_interp state test4 3;
+         OK (PTree.get x r)).
 
 (* x = 2 + 1 ==> x : Pos *)
 Definition test5 := Assgn (Var x) (Bop Add (Const (Int64.repr 2)) (Const (Int64.repr 1))).
 Compute (do r <- abs_interp state test5 20;
          OK (PTree.get x r)).
 
-(* while (1 == 1) x = 1; x = 2 ==> x : Pos *)
+(* while (1 == 1) x = 1; x = 2 ==> x : Top (see test4) *)
 Definition test6 := While (Bop Eq (Const (Int64.repr 1)) (Const (Int64.repr 1)))
                           (Seq (Assgn (Var x) (Const (Int64.repr 1)))
                                (Assgn (Var x) (Const (Int64.repr 2)))).
 Compute (do r <- abs_interp state test6 20;
-         OK (PTree.get x r)). (*gets top: wrong *)
+         OK (PTree.get x r)).
 
 (* x = x + 1 ==> x : Pos *)
 Definition test7 := Assgn (Var x) (Bop Add (Var x) (Const (Int64.repr 1))).
 Compute (do r <- abs_interp state test7 20;
          OK (PTree.get x r)).
 
-(* x = 5; x = x + (-3) ==> x : Pos *)
+(* x = 5; x = x + (-3) ==> x : Top *)
 Definition test8 :=
   Seq (Assgn (Var x) (Const (Int64.repr 5)))
       (Assgn (Var x) (Bop Add (Var x) (Const (Int64.repr (-3))))).
@@ -261,12 +279,18 @@ Definition test10 :=
 Compute (do r <- abs_interp state test10 20;
          OK (PTree.get x r)).
 
-(* x = 5; x = x - x ==> x : Top *)
+(* x = 5; x = x - x ==> x : Zero? No... Top! Why?
+
+  This algorithm only remembers the sign of expressions, it does not reason
+  about their value. Thus when it reasons about the sign of `x - x` what it
+  really sees is `Pos - Pos`. Because this can be positive, negative or zero
+  it returns Top.
+*)
 Definition test11 :=
   Seq (Assgn (Var x) (Const (Int64.repr 5)))
       (Assgn (Var x) (Bop Minus (Var x) (Var x))).
 Compute (do r <- abs_interp state test11 20;
-         OK (PTree.get x r)). (* ?? *)
+         OK (PTree.get x r)).
 
 (* x = x - x; x = x - 4 ==> x : Neg *)
 Definition test12 :=
@@ -337,6 +361,3 @@ Definition loop_test1 := Seq (Assgn (Var x) (Const (Int64.repr 10)))
                                      (Assgn (Var x) (Bop Minus (Var x) (Const (Int64.repr 1))))).
 Compute (do r <- abs_interp state loop_test1 20;
          OK (PTree.get x r)).
-
-
-
