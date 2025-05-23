@@ -4,9 +4,11 @@ This folder contains all the artifacts for the x86-to-CHERI translation project.
 
 ## Artifacts
 
-* sample.c --- several simple functions that operate only on registers, note that even with the `-O0` flag to disable optimization the CompCert compiler optimizes away assignments and operations that result in statically determined values. E.g. `int x = 4; int y = 2; return x + y` is optimized to `return 6`.
+* sample.c --- several simple functions that operate only on registers, note that even with the `-O0` flag to disable optimization the CompCert compiler optimizes away assignments and operations that result in easily determined values. E.g. `int x = 4; int y = 2; return x + y` is optimized to `return 6`, but the for-loop with a static effect is not optimized.
 
 ## Build Instructions
+
+### Building Sample Binaries
 
 1. Build [SECOMP](https://github.com/secure-compilation/SECOMP)'s CHERI RiscV enabled CompCert fork for rv64-linux. You will need the riscv64 extension to gcc and to use Coq's Flocq and MenhirLib (otherwise you'll get inconsistent assumptions when importing it and CompCert simultaneously).
 
@@ -38,17 +40,23 @@ This folder contains all the artifacts for the x86-to-CHERI translation project.
 
 5. Run `./build.sh`.
 
-6. Install CompCert through opam. This is redundant with 3 and 4, ideally these instructions will explain how to use the opam CompCert to compile the C code to x86_64.
-
-    ```shell
-    opam install coq-compcert
-    ```
-
 This should create the following files:
 
 * samplerv.{o,s}
 * sample.cap_asm    # cap is short for 'capability'
 * samplex64.{o,s}
+
+### Building Coq Files
+
+1. Install CompCert through opam. This is redundant with steps 3 and 4 above, ideally these instructions will explain how to use the opam CompCert to compile the C code to x86_64.
+
+    ```shell
+    opam install coq-compcert
+    ```
+
+2. Execute `coq_makefile`.
+
+3. Execute `make`.
 
 ## Resources
 
