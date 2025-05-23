@@ -15,6 +15,7 @@ Local Open Scope string_scope.
 Local Open Scope error_monad_scope.
 
 Inductive sign : Type :=
+| Bot : sign
 | Pos : sign
 | Neg : sign
 | Zero : sign 
@@ -22,6 +23,7 @@ Inductive sign : Type :=
 
 Definition sign_add (s1 s2 : sign) : sign :=
 match s1, s2 with 
+| Bot, _ | _, Bot => Bot
 | Pos, Pos => Pos
 | Neg, Neg => Neg 
 | Pos, Neg => Top
@@ -33,6 +35,7 @@ end.
 
 Definition neg_sign (s1 : sign) : sign :=
 match s1 with 
+| Bot => Bot
 | Pos => Neg 
 | Neg => Pos
 | Zero => Zero
@@ -41,6 +44,7 @@ end.
 
 Definition sign_minus (s1 s2 : sign) : sign :=
 match s1, s2 with
+| Bot, _ | _, Bot => Bot
 | Pos, Pos => Top
 | Pos, Zero => Pos
 | Pos, Neg => Top
@@ -74,6 +78,7 @@ Definition sign_or (s1 s2 : sign) : sign := Top.
 
 Definition eq_sign (s1 s2 : sign) : bool :=
 match s1, s2 with 
+| Bot, Bot => true
 | Neg, Neg => true 
 | Pos, Pos => true 
 | Zero, Zero => true 
@@ -83,6 +88,7 @@ end.
 
 Definition join_sign (s1 s2 : sign) : sign :=
 match s1, s2 with 
+| Bot, s | s, Bot => s
 | Pos, Pos => Pos
 | Neg, Neg => Neg
 | Zero, Zero => Zero
@@ -91,16 +97,18 @@ end.
 
 Definition intersect_sign (s1 s2 : sign) : sign :=
 match s1, s2 with
+| Bot, x | x, Bot => Bot
 | Top, x | x, Top => x
 | Pos, Pos => Pos
 | Neg, Neg => Neg
 | Zero, Zero => Zero
-| _, _ => (* they disagree *) Top
+| _, _ => (* they disagree *) Bot
 end.
 
 (* If the new value equals the old one, keep it; otherwise, go to Top. *)
 Definition widen_sign (old new : sign) : sign :=
 match old, new with
+| Bot, Bot => Bot
 | Pos, Pos => Pos
 | Neg, Neg => Neg
 | Zero, Zero => Zero
@@ -110,6 +118,7 @@ end.
 (* If we overshot to Top but the new value is more precise, accept it. *)
 Definition sign_narrow (old new : sign) : sign :=
 match old, new with
+| Top, Bot => Bot
 | Top, Pos => Pos
 | Top, Neg => Neg
 | Top, Zero => Zero
@@ -127,6 +136,7 @@ else if Integers.Int64.lt Integers.Int64.zero i
 
 Definition to_con (s : sign) : int64 -> Prop :=
 match s with 
+| Bot => fun i => False
 | Pos => fun i => Integers.Int64.lt Integers.Int64.zero i
 | Neg => fun i => Integers.Int64.lt i Integers.Int64.zero
 | Zero => fun i => Integers.Int64.eq i Integers.Int64.zero
